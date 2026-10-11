@@ -40,6 +40,7 @@ import mapFjordur from '../../assets/maps/fjordur.png';
 import mapCrystalIsles from '../../assets/maps/crystal_isles.png';
 import mapLostIsland from '../../assets/maps/lost_island.png';
 import mapArkClub from '../../assets/maps/ark_club.png';
+import { NumberInput } from '../ui/NumberInput';
 
 interface Props {
     onClose: () => void;
@@ -83,7 +84,7 @@ export default function InstallServerDialog({ onClose }: Props) {
         moddedMaps: MODDED_MAP_PRESETS.filter(p => p.serverType === 'ASA').map(p => ({
             id: p.mapArgument,
             name: p.name,
-            description: p.description,
+            description: t(`dialogs.installServer.moddedMapDesc.${p.mapArgument}`, p.description),
             color: p.color,
             icon: p.icon,
             size: p.size === 'Large (~6 GB)' ? 'Large' : 'Medium',
@@ -164,7 +165,7 @@ export default function InstallServerDialog({ onClose }: Props) {
             queryPort: free.queryPort,
             rconPort: free.rconPort,
         }));
-        toast.success(`Auto-allocated free ports: Game (${free.gamePort}), Query (${free.queryPort}), RCON (${free.rconPort})`);
+        toast.success(t('dialogs.installServer.autoAllocated', { defaultValue: 'Auto-allocated free ports: Game ({{game}}), Query ({{query}}), RCON ({{rcon}})', game: free.gamePort, query: free.queryPort, rcon: free.rconPort }));
     };
 
     useEffect(() => {
@@ -249,7 +250,7 @@ export default function InstallServerDialog({ onClose }: Props) {
 
     const handleSelectFolder = async () => {
         try {
-            const folder = await selectFolder('Select Base Directory (Servers will be created inside)');
+            const folder = await selectFolder(t('dialogs.installServer.selectBaseDir', 'Select Base Directory (Servers will be created inside)'));
             if (folder) {
                 setBaseDir(folder);
             }
@@ -276,7 +277,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                 onClose();
             }
         } catch (e) {
-            toast.error(`Failed to cancel: ${e}`, { id: 'cancel-install' });
+            toast.error(t('dialogs.installServer.cancelFailed', { defaultValue: 'Failed to cancel: {{error}}', error: String(e) }), { id: 'cancel-install' });
             setIsCancelling(false);
         }
     };
@@ -373,7 +374,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                             <button
                                 onClick={handleMinimize}
                                 className="p-1.5 sm:p-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 rounded-xl transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-sky-500/40 flex items-center gap-1.5 shadow-sm"
-                                aria-label="Minimize installation"
+                                aria-label={t('dialogs.installServer.minimizeAria', 'Minimize installation')}
                                 title={t('dialogs.installServer.minimize', 'Minimize to Background')}
                             >
                                 <Minus className="w-4 h-4" />
@@ -383,7 +384,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                 <button
                                     onClick={handleClose}
                                     className="p-1.5 sm:p-2 bg-slate-800/50 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700/50 hover:border-red-500/30 rounded-xl transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-red-500/40 shadow-sm"
-                                    aria-label="Close dialog"
+                                    aria-label={t('dialogs.installServer.closeAria', 'Close dialog')}
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
@@ -432,7 +433,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                 }
                                             }}
                                             disabled={s.id > step}
-                                            aria-label={`${s.title} - ${isCompleted ? 'Completed' : isActive ? 'Current step' : 'Not yet available'}`}
+                                            aria-label={`${s.title} - ${isCompleted ? t('dialogs.installServer.stepCompleted', 'Completed') : isActive ? t('dialogs.installServer.stepCurrent', 'Current step') : t('dialogs.installServer.stepUnavailable', 'Not yet available')}`}
                                             aria-current={isActive ? 'step' : undefined}
                                             className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-all duration-300 ${isActive
                                                 ? 'bg-white/10 text-white scale-105'
@@ -548,7 +549,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                 <img src={map.image} alt={map.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                                                 <div className="absolute top-2 right-2">
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-violet-500/40 backdrop-blur-sm text-violet-200 font-medium">DLC</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-violet-500/40 backdrop-blur-sm text-violet-200 font-medium">{t('dialogs.installServer.badgeDlc', 'DLC')}</span>
                                                 </div>
                                                 {formData.mapName === map.id && (
                                                     <div className="absolute top-2 left-2 bg-black/40 rounded-full p-0.5 backdrop-blur-sm border border-violet-500/50">
@@ -584,7 +585,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                 <img src={map.image} alt={map.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                                                 <div className="absolute top-2 right-2">
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-pink-500/40 backdrop-blur-sm text-pink-200 font-medium">MOD</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-pink-500/40 backdrop-blur-sm text-pink-200 font-medium">{t('dialogs.installServer.badgeMod', 'MOD')}</span>
                                                 </div>
                                                 {formData.mapName === map.id && (
                                                     <div className="absolute top-2 left-2 bg-black/40 rounded-full p-0.5 backdrop-blur-sm border border-pink-500/50">
@@ -620,7 +621,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                 <img src={map.image} alt={map.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                                                 <div className="absolute top-2 right-2">
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-orange-500/40 backdrop-blur-sm text-orange-200 font-medium">MODDED</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-orange-500/40 backdrop-blur-sm text-orange-200 font-medium">{t('dialogs.installServer.badgeModded', 'MODDED')}</span>
                                                 </div>
                                                 {formData.mapName === map.id && (
                                                     <div className="absolute top-2 left-2 bg-black/40 rounded-full p-0.5 backdrop-blur-sm border border-orange-500/50">
@@ -631,7 +632,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                     <div className="font-semibold text-white text-sm drop-shadow-lg">{map.name}</div>
                                                     {(map as any).author && (
                                                         <div className="text-[10px] text-amber-400 font-semibold drop-shadow-md">
-                                                            By {(map as any).author}
+                                                            {t('dialogs.installServer.byAuthor', { defaultValue: 'By {{author}}', author: (map as any).author })}
                                                         </div>
                                                     )}
                                                     <div className="text-[11px] text-slate-300/80 mt-0.5 drop-shadow-md line-clamp-1">{map.description}</div>
@@ -661,7 +662,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                 <img src={map.image} alt={map.name} className="absolute inset-0 w-full h-full object-cover grayscale" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30" />
                                                 <div className="absolute top-2 right-2">
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/30 backdrop-blur-sm text-amber-300 font-medium">SOON</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/30 backdrop-blur-sm text-amber-300 font-medium">{t('dialogs.installServer.badgeSoon', 'SOON')}</span>
                                                 </div>
                                                 <div className="absolute bottom-0 left-0 right-0 p-3">
                                                     <div className="font-semibold text-slate-300 text-sm">{map.name}</div>
@@ -713,7 +714,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-cyan-400 font-mono text-base focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all"
                                             placeholder="server1"
                                         />
-                                        <p className="text-xs text-slate-500 mt-1">Unique profile name for this server (e.g. server1, Aberration_PVP...).</p>
+                                        <p className="text-xs text-slate-500 mt-1">{t('dialogs.installServer.profileNameHint', 'Unique profile name for this server (e.g. server1, Aberration_PVP...).')}</p>
                                     </div>
 
                                     <div>
@@ -727,7 +728,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             value={formData.sessionName ?? ''}
                                             onChange={(e) => setFormData({ ...formData, sessionName: e.target.value })}
                                             className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 transition-all"
-                                            placeholder="My ASA Server"
+                                            placeholder={t('dialogs.installServer.sessionNamePlaceholder', 'My ASA Server')}
                                         />
                                         <p className="text-xs text-slate-500 mt-1">🌐 {t('dialogs.installServer.sessionNameDesc')}</p>
                                     </div>
@@ -748,7 +749,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             <button
                                                 onClick={handleSelectFolder}
                                                 className="px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition-colors"
-                                                title="Select Base Folder"
+                                                title={t('dialogs.installServer.selectBaseFolder', 'Select Base Folder')}
                                             >
                                                 <Folder className="w-5 h-5 text-white" />
                                             </button>
@@ -847,10 +848,10 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             <Users className="w-4 h-4 text-emerald-400" />
                                             {t('dialogs.installServer.maxPlayers', 'Max Players')}
                                         </label>
-                                        <input
-                                            type="number"
+                                        <NumberInput
+                                            integer
                                             value={formData.maxPlayers ?? 70}
-                                            onChange={(e) => setFormData({ ...formData, maxPlayers: parseInt(e.target.value) || 70 })}
+                                            onValueChange={(n) => setFormData({ ...formData, maxPlayers: n })}
                                             className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 transition-all font-mono"
                                             placeholder="70"
                                             min={1}
@@ -887,7 +888,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             value={formData.serverPassword ?? ''}
                                             onChange={(e) => setFormData({ ...formData, serverPassword: e.target.value })}
                                             className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white text-lg focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500/50 transition-all font-mono"
-                                            placeholder="Leave empty for public access"
+                                            placeholder={t('dialogs.installServer.serverPasswordPlaceholder', 'Leave empty for public access')}
                                         />
                                         <p className="text-xs text-slate-500 mt-1">{t('dialogs.installServer.serverPasswordDesc', 'Password required for players to join the server')}</p>
                                     </div>
@@ -907,7 +908,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-md shadow-sky-500/10"
                                     >
                                         <Wand2 className="w-3.5 h-3.5 text-sky-400" />
-                                        <span>Auto-Allocate Free Ports</span>
+                                        <span>{t('dialogs.installServer.autoAllocate', 'Auto-Allocate Free Ports')}</span>
                                     </button>
                                 </div>
 
@@ -923,10 +924,12 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                     <div className="text-xs text-slate-500">{t('dialogs.installServer.gamePortDesc')}</div>
                                                 </div>
                                             </div>
-                                            <input
-                                                type="number"
+                                            <NumberInput
+                                                integer
+                                                min={1}
+                                                max={65535}
                                                 value={formData.gamePort}
-                                                onChange={(e) => setFormData({ ...formData, gamePort: parseInt(e.target.value) || 0 })}
+                                                onValueChange={(n) => setFormData({ ...formData, gamePort: n })}
                                                 className="w-24 px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-center font-mono focus:outline-none focus:ring-2 focus:ring-white/20"
                                             />
                                         </div>
@@ -943,10 +946,12 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                     <div className="text-xs text-slate-500">{t('dialogs.installServer.queryPortDesc')}</div>
                                                 </div>
                                             </div>
-                                            <input
-                                                type="number"
+                                            <NumberInput
+                                                integer
+                                                min={1}
+                                                max={65535}
                                                 value={formData.queryPort}
-                                                onChange={(e) => setFormData({ ...formData, queryPort: parseInt(e.target.value) || 0 })}
+                                                onValueChange={(n) => setFormData({ ...formData, queryPort: n })}
                                                 className="w-24 px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-center font-mono focus:outline-none focus:ring-2 focus:ring-white/20"
                                             />
                                         </div>
@@ -963,10 +968,12 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                     <div className="text-xs text-slate-500">{t('dialogs.installServer.rconPortDesc')}</div>
                                                 </div>
                                             </div>
-                                            <input
-                                                type="number"
+                                            <NumberInput
+                                                integer
+                                                min={1}
+                                                max={65535}
                                                 value={formData.rconPort}
-                                                onChange={(e) => setFormData({ ...formData, rconPort: parseInt(e.target.value) || 0 })}
+                                                onValueChange={(n) => setFormData({ ...formData, rconPort: n })}
                                                 className="w-24 px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-center font-mono focus:outline-none focus:ring-2 focus:ring-white/20"
                                             />
                                         </div>
@@ -1221,10 +1228,10 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                     onClick={async () => {
                                                         try {
                                                             const { repairSteamcmd } = await import('../../utils/tauri');
-                                                            toast.loading('Repairing SteamCMD...', { id: 'repair' });
+                                                            toast.loading(t('dialogs.installServer.repairing', 'Repairing SteamCMD...'), { id: 'repair' });
                                                             await repairSteamcmd();
-                                                            toast.success('SteamCMD repaired! Try installing again.', { id: 'repair' });
-                                                        } catch (e) { toast.error(`Repair failed: ${e}`, { id: 'repair' }); }
+                                                            toast.success(t('dialogs.installServer.repaired', 'SteamCMD repaired! Try installing again.'), { id: 'repair' });
+                                                        } catch (e) { toast.error(t('dialogs.installServer.repairFailed', { defaultValue: 'Repair failed: {{error}}', error: String(e) }), { id: 'repair' }); }
                                                     }}
                                                     className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-semibold transition-all shadow-lg shadow-amber-500/20 text-sm"
                                                 >
@@ -1235,10 +1242,10 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                     onClick={async () => {
                                                         try {
                                                             const { clearSteamcmdCache } = await import('../../utils/tauri');
-                                                            toast.loading('Clearing cache...', { id: 'cache' });
+                                                            toast.loading(t('dialogs.installServer.clearingCache', 'Clearing cache...'), { id: 'cache' });
                                                             await clearSteamcmdCache();
-                                                            toast.success('Cache cleared! Try installing again.', { id: 'cache' });
-                                                        } catch (e) { toast.error(`Clear cache failed: ${e}`, { id: 'cache' }); }
+                                                            toast.success(t('dialogs.installServer.cacheCleared', 'Cache cleared! Try installing again.'), { id: 'cache' });
+                                                        } catch (e) { toast.error(t('dialogs.installServer.clearCacheFailed', { defaultValue: 'Clear cache failed: {{error}}', error: String(e) }), { id: 'cache' }); }
                                                     }}
                                                     className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all text-sm"
                                                 >
@@ -1250,11 +1257,11 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             {/* Diagnostic Tips */}
                                             <div className="text-left bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 text-xs space-y-1.5 max-w-md mx-auto">
                                                 <p className="text-slate-300 font-semibold mb-2">{t('dialogs.installServer.diagnosticTips', 'Troubleshooting Tips')}:</p>
-                                                <p className="text-slate-400">• Ensure at least 60 GB of free disk space</p>
-                                                <p className="text-slate-400">• Check that your antivirus isn't blocking SteamCMD</p>
-                                                <p className="text-slate-400">• Verify stable internet connection</p>
-                                                <p className="text-slate-400">• Try running the app as Administrator</p>
-                                                <p className="text-slate-400">• Avoid special characters or spaces in install path</p>
+                                                <p className="text-slate-400">• {t('dialogs.installServer.tips.disk', 'Ensure at least 60 GB of free disk space')}</p>
+                                                <p className="text-slate-400">• {t('dialogs.installServer.tips.antivirus', "Check that your antivirus isn't blocking SteamCMD")}</p>
+                                                <p className="text-slate-400">• {t('dialogs.installServer.tips.internet', 'Verify stable internet connection')}</p>
+                                                <p className="text-slate-400">• {t('dialogs.installServer.tips.admin', 'Try running the app as Administrator')}</p>
+                                                <p className="text-slate-400">• {t('dialogs.installServer.tips.path', 'Avoid special characters or spaces in install path')}</p>
                                             </div>
                                         </div>
                                     ) : (
@@ -1311,8 +1318,8 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             <button
                                                 onClick={() => setShowTimestamps(!showTimestamps)}
                                                 className={`p-1.5 rounded transition-all ${showTimestamps ? 'bg-white/10 text-slate-300' : 'hover:bg-white/10 text-slate-500'}`}
-                                                title={showTimestamps ? 'Hide timestamps' : 'Show timestamps'}
-                                                aria-label={showTimestamps ? 'Hide timestamps' : 'Show timestamps'}
+                                                title={showTimestamps ? t('dialogs.installServer.hideTimestamps', 'Hide timestamps') : t('dialogs.installServer.showTimestamps', 'Show timestamps')}
+                                                aria-label={showTimestamps ? t('dialogs.installServer.hideTimestamps', 'Hide timestamps') : t('dialogs.installServer.showTimestamps', 'Show timestamps')}
                                             >
                                                 <Clock className="w-3.5 h-3.5" />
                                             </button>
@@ -1320,8 +1327,8 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             <button
                                                 onClick={copyLogsToClipboard}
                                                 className="p-1.5 hover:bg-white/10 rounded transition-all text-slate-400 hover:text-slate-200 disabled:opacity-50"
-                                                title="Copy logs to clipboard"
-                                                aria-label="Copy logs to clipboard"
+                                                title={t('dialogs.installServer.copyLogs', 'Copy logs to clipboard')}
+                                                aria-label={t('dialogs.installServer.copyLogs', 'Copy logs to clipboard')}
                                                 disabled={consoleLogs.length === 0}
                                             >
                                                 <Copy className="w-3.5 h-3.5" />
@@ -1330,7 +1337,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                                             <button
                                                 onClick={() => setShowConsole(!showConsole)}
                                                 className="p-1.5 hover:bg-white/10 rounded transition-all"
-                                                aria-label={showConsole ? 'Collapse console' : 'Expand console'}
+                                                aria-label={showConsole ? t('dialogs.installServer.collapseConsole', 'Collapse console') : t('dialogs.installServer.expandConsole', 'Expand console')}
                                             >
                                                 {showConsole ? (
                                                     <ChevronUp className="w-4 h-4 text-slate-400" />
@@ -1376,8 +1383,8 @@ export default function InstallServerDialog({ onClose }: Props) {
                                                 <button
                                                     onClick={scrollToBottom}
                                                     className="absolute bottom-2 right-2 p-2 bg-slate-700 hover:bg-slate-600 rounded-full shadow-lg transition-all hover:scale-110"
-                                                    title="Scroll to bottom"
-                                                    aria-label="Scroll to bottom of console"
+                                                    title={t('dialogs.installServer.scrollBottom', 'Scroll to bottom')}
+                                                    aria-label={t('dialogs.installServer.scrollBottomAria', 'Scroll to bottom of console')}
                                                 >
                                                     <ArrowDownToLine className="w-4 h-4 text-slate-300" />
                                                 </button>
@@ -1468,7 +1475,7 @@ export default function InstallServerDialog({ onClose }: Props) {
                             disabled={isInstalling}
                         >
                             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                            {step === 1 ? 'Cancel' : 'Back'}
+                            {step === 1 ? t('common.cancel', 'Cancel') : t('common.back', 'Back')}
                         </button>
                     )}
 

@@ -1,5 +1,6 @@
 // AI Agent utilities — tool definitions, system prompt, tool execution
 import { invoke } from '@tauri-apps/api/core';
+import i18n from '../i18n';
 import { formatMemoryForPrompt } from './aiMemory';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -221,7 +222,7 @@ When performing multi-step tasks, chain multiple tool calls in sequence. After e
 export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     get_server_status: {
         name: 'get_server_status',
-        label: 'Get Server Status',
+        get label() { return i18n.t('aiTools.get_server_status', 'Get Server Status'); },
         description: 'Fetches the status of all managed servers',
         requiresConfirmation: false,
         execute: async () => {
@@ -230,7 +231,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     install_server: {
         name: 'install_server',
-        label: 'Setup New Server',
+        get label() { return i18n.t('aiTools.install_server', 'Setup New Server'); },
         description: 'Installs and configures a new ARK server instance',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -246,7 +247,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     start_server: {
         name: 'start_server',
-        label: 'Start Server',
+        get label() { return i18n.t('aiTools.start_server', 'Start Server'); },
         description: 'Starts an ARK server',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -258,7 +259,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     stop_server: {
         name: 'stop_server',
-        label: 'Stop Server',
+        get label() { return i18n.t('aiTools.stop_server', 'Stop Server'); },
         description: 'Stops a running ARK server',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -269,7 +270,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     restart_server: {
         name: 'restart_server',
-        label: 'Restart Server',
+        get label() { return i18n.t('aiTools.restart_server', 'Restart Server'); },
         description: 'Restarts an ARK server',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -280,7 +281,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     create_backup: {
         name: 'create_backup',
-        label: 'Create Backup',
+        get label() { return i18n.t('aiTools.create_backup', 'Create Backup'); },
         description: 'Creates a backup of server save data',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -291,7 +292,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     get_system_info: {
         name: 'get_system_info',
-        label: 'System Info',
+        get label() { return i18n.t('aiTools.get_system_info', 'System Info'); },
         description: 'Gets current system resource usage',
         requiresConfirmation: false,
         execute: async () => {
@@ -300,18 +301,24 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     get_server_logs: {
         name: 'get_server_logs',
-        label: 'Server Logs',
+        get label() { return i18n.t('aiTools.get_server_logs', 'Server Logs'); },
         description: 'Gets recent server log entries',
         requiresConfirmation: false,
         execute: async (args) => {
+            const serverId = Number(args.server_id);
+            const server = await invoke<{ installPath: string } | null>('get_server_by_id', { serverId });
+            if (!server) {
+                throw new Error(`Server ${serverId} not found`);
+            }
             return await invoke('get_server_logs', {
-                serverId: args.server_id as number,
+                serverId,
+                installPath: server.installPath,
             });
         },
     },
     rcon_command: {
         name: 'rcon_command',
-        label: 'RCON Command',
+        get label() { return i18n.t('aiTools.rcon_command', 'RCON Command'); },
         description: 'Executes an RCON command on the server',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -323,7 +330,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     broadcast_message: {
         name: 'broadcast_message',
-        label: 'Broadcast Message',
+        get label() { return i18n.t('aiTools.broadcast_message', 'Broadcast Message'); },
         description: 'Broadcasts a message to all players',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -335,7 +342,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     get_scheduled_tasks: {
         name: 'get_scheduled_tasks',
-        label: 'Scheduled Tasks',
+        get label() { return i18n.t('aiTools.get_scheduled_tasks', 'Scheduled Tasks'); },
         description: 'Gets all configured scheduled tasks',
         requiresConfirmation: false,
         execute: async () => {
@@ -344,7 +351,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     update_server: {
         name: 'update_server',
-        label: 'Update Server',
+        get label() { return i18n.t('aiTools.update_server', 'Update Server'); },
         description: 'Updates an ARK server via SteamCMD',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -355,7 +362,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     analyze_crash_log: {
         name: 'analyze_crash_log',
-        label: 'Analyze Crash Logs',
+        get label() { return i18n.t('aiTools.analyze_crash_log', 'Analyze Crash Logs'); },
         description: 'Fetches recent crash events and log anomalies to diagnose server instability',
         requiresConfirmation: false,
         execute: async () => {
@@ -367,7 +374,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 
     read_ini_config: {
         name: 'read_ini_config',
-        label: 'Read INI Config',
+        get label() { return i18n.t('aiTools.read_ini_config', 'Read INI Config'); },
         description: 'Reads the contents of a server INI configuration file',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -379,7 +386,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     save_ini_config: {
         name: 'save_ini_config',
-        label: 'Save INI Config',
+        get label() { return i18n.t('aiTools.save_ini_config', 'Save INI Config'); },
         description: 'Writes content to a server INI configuration file',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -392,7 +399,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     load_server_config: {
         name: 'load_server_config',
-        label: 'Load Server Config',
+        get label() { return i18n.t('aiTools.load_server_config', 'Load Server Config'); },
         description: 'Loads the full parsed server configuration with all multipliers and settings',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -403,7 +410,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     backup_ini_config: {
         name: 'backup_ini_config',
-        label: 'Backup INI Config',
+        get label() { return i18n.t('aiTools.backup_ini_config', 'Backup INI Config'); },
         description: 'Creates a timestamped backup of a config file before making changes',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -418,7 +425,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 
     list_backups: {
         name: 'list_backups',
-        label: 'List Backups',
+        get label() { return i18n.t('aiTools.list_backups', 'List Backups'); },
         description: 'Lists all backups for a server',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -429,7 +436,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     restore_backup: {
         name: 'restore_backup',
-        label: 'Restore Backup',
+        get label() { return i18n.t('aiTools.restore_backup', 'Restore Backup'); },
         description: 'Restores a server from a backup by backup ID',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -440,7 +447,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     delete_backup: {
         name: 'delete_backup',
-        label: 'Delete Backup',
+        get label() { return i18n.t('aiTools.delete_backup', 'Delete Backup'); },
         description: 'Deletes a specific backup by its ID',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -451,7 +458,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     cleanup_old_backups: {
         name: 'cleanup_old_backups',
-        label: 'Cleanup Old Backups',
+        get label() { return i18n.t('aiTools.cleanup_old_backups', 'Cleanup Old Backups'); },
         description: 'Removes old backups keeping only the most recent N backups',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -466,7 +473,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 
     list_players: {
         name: 'list_players',
-        label: 'List Online Players',
+        get label() { return i18n.t('aiTools.list_players', 'List Online Players'); },
         description: 'Lists all currently online players on a server via RCON',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -478,7 +485,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     kick_player: {
         name: 'kick_player',
-        label: 'Kick Player',
+        get label() { return i18n.t('aiTools.kick_player', 'Kick Player'); },
         description: 'Kicks a player from the server by their Steam ID or name',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -490,7 +497,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     ban_player: {
         name: 'ban_player',
-        label: 'Ban Player',
+        get label() { return i18n.t('aiTools.ban_player', 'Ban Player'); },
         description: 'Bans a player from the server by their Steam ID',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -505,7 +512,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 
     create_scheduled_task: {
         name: 'create_scheduled_task',
-        label: 'Create Scheduled Task',
+        get label() { return i18n.t('aiTools.create_scheduled_task', 'Create Scheduled Task'); },
         description: 'Creates a new scheduled task (backup, restart, update, or RCON command)',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -516,7 +523,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     delete_scheduled_task: {
         name: 'delete_scheduled_task',
-        label: 'Delete Scheduled Task',
+        get label() { return i18n.t('aiTools.delete_scheduled_task', 'Delete Scheduled Task'); },
         description: 'Deletes a scheduled task by its ID',
         requiresConfirmation: true,
         execute: async (args) => {
@@ -530,7 +537,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 
     navigate_to_page: {
         name: 'navigate_to_page',
-        label: 'Navigate to Page',
+        get label() { return i18n.t('aiTools.navigate_to_page', 'Navigate to Page'); },
         description: 'Navigates the user to a specific page in the application',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -543,7 +550,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 
     search_mods: {
         name: 'search_mods',
-        label: 'Search Mods',
+        get label() { return i18n.t('aiTools.search_mods', 'Search Mods'); },
         description: 'Searches for ARK mods on Steam Workshop or CurseForge',
         requiresConfirmation: false,
         execute: async (args) => {
@@ -555,18 +562,18 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     },
     get_installed_mods: {
         name: 'get_installed_mods',
-        label: 'Get Installed Mods',
+        get label() { return i18n.t('aiTools.get_installed_mods', 'Get Installed Mods'); },
         description: 'Gets the list of mods installed on a server',
         requiresConfirmation: false,
         execute: async (args) => {
-            return await invoke('get_server_mods', {
+            return await invoke('get_installed_mods', {
                 serverId: Number(args.server_id),
             });
         },
     },
     save_world: {
         name: 'save_world',
-        label: 'Save World',
+        get label() { return i18n.t('aiTools.save_world', 'Save World'); },
         description: 'Saves the current world state via RCON SaveWorld command',
         requiresConfirmation: false,
         execute: async (args) => {
