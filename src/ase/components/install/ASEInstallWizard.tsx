@@ -16,7 +16,7 @@ import { suggestNextAsePorts } from '../../utils/aseLaunchArgs';
 import { useAseServerStore } from '../../stores/aseServerStore';
 import { selectFolder } from '../../../utils/tauri';
 import { useInstallStore } from '../../../stores/installStore';
-import { joinPlatformPath, isWindowsOS } from '../../../platform/platform';
+import { joinPlatformPath, getPlatformInfo, getDefaultServerDir } from '../../../platform/platform';
 import type { AseMapName } from '../../types/ase.types';
 
 interface Props { onClose: () => void; }
@@ -74,7 +74,17 @@ export default function ASEInstallWizard({ onClose }: Props) {
   const [sessionName, setSessionName] = useState(draftSetup?.formData?.sessionName || 'My ASE Server');
   const [installPath, setInstallPath] = useState(draftSetup?.formData?.installPath || '');
   const [maxPlayers, setMaxPlayers] = useState(draftSetup?.formData?.maxPlayers || 70);
-  const [baseDir, setBaseDir] = useState(draftSetup?.baseDir || (isWindowsOS() ? 'C:\\ARKServerManager\\ase' : '~/ARKServerManager/ase'));
+  const [baseDir, setBaseDir] = useState(draftSetup?.baseDir || getDefaultServerDir());
+
+  useEffect(() => {
+    if (!draftSetup?.baseDir) {
+      getPlatformInfo().then(info => {
+        if (info?.defaultServerDir) {
+          setBaseDir(info.defaultServerDir);
+        }
+      }).catch(console.error);
+    }
+  }, [draftSetup?.baseDir]);
 
   useEffect(() => {
     if (!draftSetup?.formData?.name) {

@@ -599,6 +599,13 @@ impl GuardianService {
             return false;
         }
 
+        // 1b. Skip auto-restart if the exit was clean (exit code 0)
+        let reason_lower = reason.to_lowercase();
+        if reason_lower.contains("code 0") || reason_lower.contains("code: 0") || reason_lower.contains("status: stopped") {
+            println!("🛡️ Guardian Watchdog: Server {} clean termination ({}). Skipping auto-restart.", server_id, reason);
+            return false;
+        }
+
         // 2. Remove from active pids tracking
         {
             let mut pids = self.server_pids.lock().await;
@@ -807,6 +814,10 @@ impl GuardianService {
                         match fut.await {
                             Ok(_) => return,
                             Err(err) => {
+                                if err.to_lowercase().contains("already running") {
+                                    println!("🛡️ Guardian Watchdog: ASE server {} is already running! Preserving active process.", real_id);
+                                    return;
+                                }
                                 let retryable = is_retryable_restart_error(&err);
                                 println!(
                                     "🛡️ Guardian Watchdog: ASE auto-restart attempt {}/{} failed for server {}: {}",
@@ -857,6 +868,10 @@ impl GuardianService {
                     match fut.await {
                         Ok(_) => return,
                         Err(err) => {
+                            if err.to_lowercase().contains("already running") {
+                                println!("🛡️ Guardian Watchdog: ASA server {} is already running! Preserving active process.", server_id);
+                                return;
+                            }
                             let retryable = is_retryable_restart_error(&err);
                             println!(
                                 "🛡️ Guardian Watchdog: ASA auto-restart attempt {}/{} failed for server {}: {}",

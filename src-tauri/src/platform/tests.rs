@@ -55,4 +55,14 @@ mod tests {
             assert_eq!(flags, 0);
         }
     }
+
+    #[test]
+    fn test_expand_tilde() {
+        let expanded = Platform::expand_tilde("~/test_dir");
+        let non_tilde = Platform::expand_tilde("/var/servers/test");
+        assert_eq!(non_tilde.to_str().unwrap(), "/var/servers/test");
+        if let Some(home) = super::super::home_dir() {
+            assert_eq!(expanded, home.join("test_dir"));
+        }
+    }
 }

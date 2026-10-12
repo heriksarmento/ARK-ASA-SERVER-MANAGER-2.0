@@ -1535,6 +1535,25 @@ impl ConfigGenerator {
             );
         }
 
+        // 5.7. Ensure MapName (and ServerMap if present) in GameUserSettings.ini is normalized
+        // to prevent duplicate save directories (e.g. Astraeos creating a blank Day 1 world instead of loading Astraeos_WP)
+        if !effective_map.is_empty() {
+            final_gus = crate::services::ini_parser::IniParser::update_key(
+                &final_gus,
+                "ServerSettings",
+                "MapName",
+                &effective_map,
+            );
+            if final_gus.contains("ServerMap=") {
+                final_gus = crate::services::ini_parser::IniParser::update_key(
+                    &final_gus,
+                    "ServerSettings",
+                    "ServerMap",
+                    &effective_map,
+                );
+            }
+        }
+
         // 6. Write GUS
         if crate::services::ini_parser::IniParser::is_file_readonly(&gus_path) {
             println!("  🔒 [Read-Only Guard] GameUserSettings.ini is marked Read-Only by user. Preserving manual lock and skipping automated startup overwrite.");
@@ -1712,7 +1731,7 @@ pub fn resolve_map_mod_id(map: &str, active_mods: &[String]) -> Option<String> {
         || trimmed.eq_ignore_ascii_case("Insaluna_WP")
         || trimmed.eq_ignore_ascii_case("INSALUNA")
     {
-        return Some("935639".to_string());
+        return Some("939532".to_string());
     }
     if trimmed.eq_ignore_ascii_case("TemptressLagoon")
         || trimmed.eq_ignore_ascii_case("TemptressLagoon_WP")
@@ -1777,7 +1796,7 @@ pub fn get_mod_id_for_map(map: &str) -> Option<&'static str> {
         "Svartalfheim_WP" | "Svartalfheim" | "SVARTALFHEIM" => Some("962796"), // Svartalfheim Premium (962796)
         "Forglar_WP" | "Forglar" | "FORGLAR" => Some("952876"),
         "Amissa_WP" | "Amissa" | "AMISSA" => Some("965379"),
-        "Insaluna_WP" | "Insaluna" | "INSALUNA" => Some("935639"),
+        "Insaluna_WP" | "Insaluna" | "INSALUNA" => Some("939532"),
         "TemptressLagoon_WP" | "TemptressLagoon" | "Temptress_Lagoon" => Some("935048"),
         "Reverence_WP" | "Reverence" | "REVERENCE" => Some("932906"),
         "Bjarnheim_WP" | "Bjarnheim" | "BJARNHEIM" => Some("1376189"),
@@ -1788,5 +1807,29 @@ pub fn get_mod_id_for_map(map: &str) -> Option<&'static str> {
         "Vanna_WP" | "Vanna" | "VANNA" => Some("944358"),
         "TaeniaStella_WP" | "TaeniaStella" | "TAENIASTELLA" => Some("965905"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_insaluna_mod_id_resolution() {
+        assert_eq!(resolve_map_mod_id("Insaluna_WP", &[]), Some("939532".to_string()));
+        assert_eq!(resolve_map_mod_id("Insaluna", &[]), Some("939532".to_string()));
+        assert_eq!(resolve_map_mod_id("INSALUNA", &[]), Some("939532".to_string()));
+
+        assert_eq!(get_mod_id_for_map("Insaluna_WP"), Some("939532"));
+        assert_eq!(get_mod_id_for_map("Insaluna"), Some("939532"));
+        assert_eq!(get_mod_id_for_map("INSALUNA"), Some("939532"));
+    }
+
+    #[test]
+    fn test_official_map_does_not_resolve_mod_id() {
+        assert_eq!(resolve_map_mod_id("TheIsland_WP", &[]), None);
+        assert_eq!(resolve_map_mod_id("ScorchedEarth_WP", &[]), None);
+        assert_eq!(resolve_map_mod_id("Astraeos_WP", &[]), None);
+        assert_eq!(get_mod_id_for_map("TheIsland_WP"), None);
     }
 }

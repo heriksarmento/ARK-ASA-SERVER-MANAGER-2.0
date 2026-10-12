@@ -209,12 +209,13 @@ pub async fn install_ase_server(
     branch: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<i64, String> {
+    let expanded_path = crate::platform::Platform::expand_tilde(&install_path);
     let server_id = create_ase_server(
-        name, install_path.clone(), map_name, game_port, query_port,
+        name, expanded_path.to_string_lossy().to_string(), map_name, game_port, query_port,
         rcon_port, admin_password, session_name, branch.clone().unwrap_or_else(|| "default".to_string()), state,
     ).await?;
 
-    let install_dir = PathBuf::from(&install_path);
+    let install_dir = expanded_path;
     if !install_dir.exists() {
         std::fs::create_dir_all(&install_dir)
             .map_err(|e| format!("Failed to create directory: {}", e))?;

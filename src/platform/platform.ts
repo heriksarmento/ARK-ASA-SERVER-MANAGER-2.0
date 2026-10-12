@@ -30,6 +30,10 @@ export async function getPlatformInfo(): Promise<PlatformInfo> {
   }
 }
 
+if (typeof window !== 'undefined') {
+  getPlatformInfo().catch(() => {});
+}
+
 export function isWindowsOS(): boolean {
   return cachedPlatformInfo?.isWindows ?? (typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Windows'));
 }

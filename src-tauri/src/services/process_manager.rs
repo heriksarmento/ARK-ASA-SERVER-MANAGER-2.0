@@ -178,6 +178,61 @@ fn find_child_pid_via_toolhelp(parent_pid: u32, is_ase: bool) -> Option<u32> {
     None
 }
 
+#[cfg(target_os = "windows")]
+fn find_process_by_image_path_snapshot(norm_install: &str, is_ase: bool, exclude_pids: &[u32]) -> Vec<u32> {
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+    };
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION};
+
+    let mut matches = Vec::new();
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return matches;
+        }
+
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+
+        if Process32FirstW(snapshot, &mut entry) != 0 {
+            loop {
+                let pid = entry.th32ProcessID;
+                if pid > 4 && !exclude_pids.contains(&pid) {
+                    let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
+                    let exe_name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
+                    let is_target = if is_ase {
+                        exe_name.contains("shootergame")
+                    } else {
+                        exe_name.contains("arkascendedserver")
+                    };
+
+                    if is_target {
+                        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+                        if !handle.is_null() {
+                            let mut buf = [0u16; 1024];
+                            let mut size = buf.len() as u32;
+                            if QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size) != 0 && size > 0 {
+                                let full_path = String::from_utf16_lossy(&buf[..size as usize]).replace('\\', "/").to_lowercase();
+                                if norm_install.is_empty() || full_path.contains(norm_install) || full_path.starts_with(norm_install) {
+                                    matches.push(pid);
+                                }
+                            }
+                            CloseHandle(handle);
+                        }
+                    }
+                }
+                if Process32NextW(snapshot, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+        CloseHandle(snapshot);
+    }
+    matches
+}
+
 /// Helper to verify if an executable or task name belongs to an ARK server process.
 /// This strictly prevents any interaction with external processes on the host machine (such as RustDedicated, Palworld, etc.).
 pub fn is_ark_executable_name(name: &str) -> bool {
@@ -294,12 +349,10 @@ pub fn find_game_server_pid_by_install_path(
 ) -> Option<u32> {
     let is_ase = server_type.eq_ignore_ascii_case("ASE");
 
+    let empty_slice: &[u32] = &[];
+    let excluded_slice = exclude_pids.unwrap_or(empty_slice);
     let is_excluded = |pid: u32| -> bool {
-        if let Some(list) = exclude_pids {
-            list.contains(&pid)
-        } else {
-            false
-        }
+        excluded_slice.contains(&pid)
     };
 
     // 1. Try Windows native ToolHelp snapshot first (most reliable for finding child of loader even after loader exits)
@@ -312,9 +365,15 @@ pub fn find_game_server_pid_by_install_path(
         }
     }
 
-    use sysinfo::System;
-    let mut sys = System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    use sysinfo::{System, ProcessRefreshKind, RefreshKind, UpdateKind};
+    let sys = System::new_with_specifics(
+        RefreshKind::new().with_processes(
+            ProcessRefreshKind::new()
+                .with_cmd(UpdateKind::Always)
+                .with_exe(UpdateKind::Always)
+                .with_cwd(UpdateKind::Always)
+        )
+    );
 
     let is_target_proc = |name: &str| -> bool {
         let lower = name.to_lowercase();
@@ -509,17 +568,39 @@ pub fn find_game_server_pid_by_install_path(
         }
     }
 
-    // CRITICAL: If query_port or game_port was specified, and neither command line nor socket matched:
-    // This server instance is NOT running.
-    // Under NO circumstances fall back to path matching when ports were specified, because other
-    // servers in the cluster or cloned servers sharing the same install directory would be falsely adopted!
-    if query_port.is_some() || game_port.is_some() {
-        return None;
+    // 5. Windows Native Image Path Snapshot & Non-Ambiguous Fallback
+    // If ports aren't bound yet (UE5 is initializing during early startup) or command line couldn't distinguish:
+    // Check all running server processes whose executable binary is inside this server's Win64 install path.
+    #[cfg(target_os = "windows")]
+    if !norm_install.is_empty() {
+        let image_matches = find_process_by_image_path_snapshot(&norm_install, is_ase, excluded_slice);
+        if image_matches.len() == 1 {
+            let candidate_pid = image_matches[0];
+            println!("  🎯 [Handoff] Found unambiguous server PID {} matching install path {:?}", candidate_pid, norm_install);
+            return Some(candidate_pid);
+        } else if image_matches.len() > 1 {
+            // Multiple instances in this directory — try to match by command line ports
+            for &cpid in &image_matches {
+                if let Some(proc) = sys.process(sysinfo::Pid::from_u32(cpid)) {
+                    let cmd_str = proc.cmd().iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" ").to_lowercase();
+                    if let Some(qp) = query_port {
+                        if qp > 0 && (cmd_str.contains(&format!("queryport={}", qp)) || cmd_str.contains(&format!("?queryport={}", qp))) {
+                            println!("  🎯 [Handoff] Found server PID {} matching query port {}", cpid, qp);
+                            return Some(cpid);
+                        }
+                    }
+                    if let Some(gp) = game_port {
+                        if gp > 0 && (cmd_str.contains(&format!("port={}", gp)) || cmd_str.contains(&format!("?port={}", gp))) {
+                            println!("  🎯 [Handoff] Found server PID {} matching game port {}", cpid, gp);
+                            return Some(cpid);
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    // 5. Fallback: only if NO ports were specified.
-    // Must be non-empty install path, must not be in exclude_pids,
-    // and must be unambiguous (exactly 1 candidate).
+    // Generic fallback for non-Windows or when snapshot didn't find candidates
     if !norm_install.is_empty() {
         let mut candidates = Vec::new();
         for (pid, process) in sys.processes() {
@@ -554,7 +635,7 @@ pub fn find_game_server_pid_by_install_path(
             println!("  🎯 [Handoff] Found unambiguous server PID {} matching install path {:?}", candidates[0], norm_install);
             return Some(candidates[0]);
         } else if candidates.len() > 1 {
-            println!("  ⚠️ [Handoff] Multiple running server processes ({:?}) found in {:?} without ports — skipping ambiguous adoption.", candidates, norm_install);
+            println!("  ⚠️ [Handoff] Multiple running server processes ({:?}) found in {:?} — skipping ambiguous adoption.", candidates, norm_install);
         }
     }
 
@@ -1037,6 +1118,11 @@ impl ProcessManager {
                     // game server is still active (reachable on query port or port is still bound),
                     // this is an authorized process handoff, NOT a crash/stop.
                     let status = if is_authorized {
+                        "stopped"
+                    } else if exit_code == 0 {
+                        // Exit code 0 is STATUS_SUCCESS. It is NEVER a crash!
+                        // Even if unauthorized, a process terminating with code 0 is a clean stop or launcher handoff.
+                        println!("  ℹ️ Server {} exited cleanly with code 0. Status: stopped (not crashed).", id);
                         "stopped"
                     } else {
                         // Check if the server is still reachable (child process took over)
@@ -1744,6 +1830,7 @@ impl ProcessManager {
             ("952876", "Forglar (Premium)"),
             ("965379", "Amissa"),
             ("940428", "Amissa"),
+            ("939532", "Insaluna"),
             ("935639", "Insaluna"),
             ("935048", "Temptress Lagoon"),
             ("932906", "Reverence"),
@@ -3279,10 +3366,16 @@ impl ProcessManager {
     }
 }
 
-/// Triggers intelligent repair for a server (clears mod caches and restarts without mods)
+/// Triggers intelligent repair for a server (quarantines proxy DLLs, clears temp compile caches, and safely restarts with all mods preserved)
 pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id: i64) -> anyhow::Result<()> {
     let state = app_handle.try_state::<crate::AppState>()
         .ok_or_else(|| anyhow::anyhow!("Failed to get AppState"))?;
+
+    // CRITICAL SAFETY CHECK: If server is already running, do NOT touch files or trigger duplicate starts!
+    if state.process_manager.is_running(server_id) {
+        println!("  🛡️ Auto-repair: Server {} is already running! Preserving active server process.", server_id);
+        return Ok(());
+    }
         
     let install_path = {
         let db = state.db.lock().map_err(|e| anyhow::anyhow!(e.to_string()))?;
@@ -3304,18 +3397,18 @@ pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id:
         crate::services::discord::DiscordEmbed::server_recovery(
             &name,
             true,
-            "Intelligent Mode auto-repair triggered. Clearing mod caches and restarting the server without mods...",
+            "Intelligent Mode auto-repair triggered. Quarantining proxy DLLs, clearing temporary caches, and safely restarting server...",
         ),
     ).await;
 
-    println!("  🔧 Auto-repair: Starting repair process for server {}", server_id);
+    println!("  🔧 Auto-repair: Starting safe repair process for server {}", server_id);
     
     // Emit starting message
     let _ = app_handle.emit(
         "server_log",
         ServerLogEvent {
             server_id,
-            line: "[Manager] Auto-repair: Waiting 3 seconds before repair...".to_string(),
+            line: "[Manager] Auto-repair: Waiting 3 seconds before safe repair...".to_string(),
             is_stderr: false,
         },
     );
@@ -3326,18 +3419,8 @@ pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id:
     let _ = state.plugin_manager.quarantine_proxy_dlls(server_id);
     println!("  🛡️ Auto-repair: Quarantined proxy DLLs for server {}", server_id);
 
-    // 2. Clear real CFCore mod cache directory
-    let real_mods_cache = std::path::PathBuf::from(&install_path)
-        .join("ShooterGame")
-        .join("Binaries")
-        .join("Win64")
-        .join("ShooterGame")
-        .join("Mods");
-    if real_mods_cache.exists() {
-        println!("  🗑️ Auto-repair: Clearing CFCore mod cache at {:?}", real_mods_cache);
-        let _ = std::fs::remove_dir_all(&real_mods_cache);
-    }
-
+    // 2. Clear ONLY temporary caches (.temp), NEVER touch active installed mod files!
+    // Deleting ShooterGame/Binaries/Win64/ShooterGame/Mods wipes player mod items in savegames.
     let temp_folder = std::path::PathBuf::from(&install_path)
         .join("ShooterGame")
         .join("Binaries")
@@ -3345,6 +3428,7 @@ pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id:
         .join("ShooterGame")
         .join(".temp");
     if temp_folder.exists() {
+        println!("  🗑️ Auto-repair: Clearing temporary compile cache at {:?}", temp_folder);
         let _ = std::fs::remove_dir_all(&temp_folder);
     }
     
@@ -3361,22 +3445,30 @@ pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id:
         "server_log",
         ServerLogEvent {
             server_id,
-            line: "[Manager] Auto-repair: Proxy DLLs quarantined and mod cache purged. Starting server cleanly...".to_string(),
+            line: "[Manager] Auto-repair: Proxy DLLs quarantined and temp cache purged. Safely starting server with all configured mods...".to_string(),
             is_stderr: false,
         },
     );
     
-    if let Err(e) = crate::commands::server::start_server_no_mods(
+    // CRITICAL DATA INTEGRITY FIX: Always start with mods preserved!
+    // Automated repair must NEVER launch without mods because doing so wipes modded structures/items from the world save.
+    if let Err(e) = crate::commands::server::start_server(
         app_handle.clone(),
-        state.clone(),
         server_id,
+        false,
     ).await {
-        println!("  ❌ Auto-repair failed for server {}: {}", server_id, e);
+        let err_str = e.to_string();
+        if err_str.to_lowercase().contains("already running") {
+            println!("  ℹ️ Auto-repair: Server {} is already running — active instance preserved.", server_id);
+            return Ok(());
+        }
+
+        println!("  ❌ Auto-repair failed for server {}: {}", server_id, err_str);
         let _ = app_handle.emit(
             "server_log",
             ServerLogEvent {
                 server_id,
-                line: format!("[Manager] Auto-repair failed: {}. Please restart manually.", e),
+                line: format!("[Manager] Auto-repair failed: {}. Please restart manually.", err_str),
                 is_stderr: true,
             },
         );
@@ -3387,7 +3479,7 @@ pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id:
             crate::services::discord::DiscordEmbed::server_recovery(
                 &name,
                 false,
-                &format!("Auto-repair failed: {}. Manual intervention is required.", e),
+                &format!("Auto-repair failed: {}. Manual intervention is required.", err_str),
             ),
         ).await;
         if let Ok(db) = state.db.lock() {
@@ -3398,15 +3490,15 @@ pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id:
                 );
             }
         }
-        return Err(anyhow::anyhow!("Auto-repair failed: {}", e));
+        return Err(anyhow::anyhow!("Auto-repair failed: {}", err_str));
     }
 
-    println!("  ✅ Auto-repair: Server {} restarted without mods", server_id);
+    println!("  ✅ Auto-repair: Server {} safely restarted with mods preserved", server_id);
     let _ = app_handle.emit(
         "server_log",
         ServerLogEvent {
             server_id,
-            line: "[Manager] Auto-repair successful! Server restarted without mods.".to_string(),
+            line: "[Manager] Auto-repair successful! Server restarted with all configured mods.".to_string(),
             is_stderr: false,
         },
     );
@@ -3417,7 +3509,7 @@ pub async fn trigger_intelligent_repair(app_handle: tauri::AppHandle, server_id:
         crate::services::discord::DiscordEmbed::server_recovery(
             &name,
             true,
-            "Auto-repair successful! Mod caches cleared and server process restarted successfully.",
+            "Auto-repair successful! Temp caches cleared, proxy DLLs quarantined, and server restarted safely with all mods.",
         ),
     ).await;
     

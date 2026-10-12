@@ -658,6 +658,13 @@ impl ServerInstaller {
 
         let mut last_error_msg = String::new();
         let mut had_state_0x202 = false;
+        let mut had_state_0x6 = false;
+        let mut had_state_0x406 = false;
+        let mut had_disk_write_failure = false;
+        let mut had_disk_full = false;
+        let mut had_appinfo_failure = false;
+        let mut had_missing_config = false;
+        let mut last_steam_error_line = String::new();
 
         for attempt in 1..=3 {
             // Only terminate orphaned SteamCMD processes on attempt 1
@@ -771,6 +778,33 @@ impl ServerInstaller {
                         had_state_0x202 = true;
                         self.emit_console("  ⏸️ SteamCMD reported State 0x202 (Update Paused). Download progress is preserved and resumable.", "warning");
                     }
+                    if trimmed.contains("state is 0x6") || trimmed.contains("0x6 after update job") {
+                        had_state_0x6 = true;
+                        self.emit_console("  ⚠️ SteamCMD reported State 0x6 (Corrupted manifest / Staging write error).", "warning");
+                    }
+                    if trimmed.contains("state is 0x406") || trimmed.contains("0x406 after update job") {
+                        had_state_0x406 = true;
+                        self.emit_console("  ⚠️ SteamCMD reported State 0x406 (Corrupted update chunks / staging error).", "warning");
+                    }
+                    if trimmed.to_lowercase().contains("disk write failure") {
+                        had_disk_write_failure = true;
+                        self.emit_console("  ⚠️ SteamCMD reported Disk Write Failure (files may be locked by running server or antivirus).", "warning");
+                    }
+                    if trimmed.to_lowercase().contains("disk full") || trimmed.to_lowercase().contains("not enough disk space") {
+                        had_disk_full = true;
+                        self.emit_console("  ⚠️ SteamCMD reported Disk Full (insufficient storage).", "warning");
+                    }
+                    if trimmed.contains("Failed to request AppInfo") {
+                        had_appinfo_failure = true;
+                        self.emit_console("  ⚠️ SteamCMD could not fetch AppInfo from Steam servers.", "warning");
+                    }
+                    if trimmed.contains("Missing configuration") || trimmed.contains("No subscription") {
+                        had_missing_config = true;
+                        self.emit_console("  ⚠️ SteamCMD reported Missing Configuration / App Subscription issue.", "warning");
+                    }
+                    if (trimmed.contains("ERROR!") || trimmed.contains("Error! App") || trimmed.contains("Failed to")) && trimmed.contains(app_id) {
+                        last_steam_error_line = trimmed.to_string();
+                    }
 
                     let line_type = if line.contains("Error")
                         || line.contains("ERROR")
@@ -828,7 +862,7 @@ impl ServerInstaller {
             match status_result {
                 Ok(Ok(status)) => {
                     self.emit_console("", "info");
-                    if status.success() {
+                    if status.success() && !had_state_0x6 && !had_state_0x406 && !had_disk_write_failure {
                         self.emit_console(
                             "═══════════════════════════════════════════════════════════",
                             "success",
@@ -846,7 +880,21 @@ impl ServerInstaller {
                         return Ok(true);
                     } else {
                         let code = status.code();
-                        last_error_msg = if had_state_0x202 {
+                        last_error_msg = if !last_steam_error_line.is_empty() {
+                            last_steam_error_line.clone()
+                        } else if had_state_0x6 {
+                            format!("App '{}' failed with State 0x6 (Corrupted appmanifest or disk write error).", app_id)
+                        } else if had_state_0x406 {
+                            format!("App '{}' failed with State 0x406 (Corrupted update chunks or staging mismatch).", app_id)
+                        } else if had_disk_write_failure {
+                            format!("App '{}' failed with Disk Write Failure: file is locked by a running process or antivirus.", app_id)
+                        } else if had_disk_full {
+                            format!("App '{}' failed: insufficient disk space on server or staging drive (~60 GB required).", app_id)
+                        } else if had_missing_config {
+                            format!("App '{}' failed: SteamCMD reported Missing Configuration. Re-authenticating with Steam...", app_id)
+                        } else if had_appinfo_failure {
+                            format!("App '{}' failed: Steam servers busy or could not fetch AppInfo.", app_id)
+                        } else if had_state_0x202 {
                             "SteamCMD update paused / interrupted (State 0x202). Download chunks are preserved and resumable.".to_string()
                         } else {
                             match code {
@@ -857,24 +905,40 @@ impl ServerInstaller {
                             }
                         };
 
-                        // Check if manifest was corrupted or wiped by aborted SteamCMD
-                        if manifest_path.exists() {
-                            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-                                let has_empty_build = content.lines().any(|l| {
-                                    let t = l.trim();
-                                    t.contains("\"buildid\"") && t.contains("\"0\"")
-                                });
-                                if has_empty_build && bak_path.exists() {
-                                    let _ = std::fs::copy(&bak_path, &manifest_path);
-                                    self.emit_console("  ♻️ Restored appmanifest from backup to preserve existing game files.", "warning");
+                        // Check if manifest was corrupted or wiped by aborted SteamCMD.
+                        // CRITICAL: Do NOT restore manifest if state 0x6 or 0x406 occurred, as restoring a corrupt manifest poisons subsequent attempts!
+                        if !had_state_0x6 && !had_state_0x406 {
+                            if manifest_path.exists() {
+                                if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                                    let has_empty_build = content.lines().any(|l| {
+                                        let t = l.trim();
+                                        t.contains("\"buildid\"") && t.contains("\"0\"")
+                                    });
+                                    if has_empty_build && bak_path.exists() {
+                                        let _ = std::fs::copy(&bak_path, &manifest_path);
+                                        self.emit_console("  ♻️ Restored appmanifest from backup to preserve existing game files.", "warning");
+                                    }
                                 }
+                            } else if bak_path.exists() {
+                                let _ = std::fs::copy(&bak_path, &manifest_path);
+                                self.emit_console("  ♻️ Restored missing appmanifest from backup.", "warning");
                             }
-                        } else if bak_path.exists() {
-                            let _ = std::fs::copy(&bak_path, &manifest_path);
-                            self.emit_console("  ♻️ Restored missing appmanifest from backup.", "warning");
                         }
 
                         if attempt < 3 {
+                            if had_state_0x6 || had_state_0x406 {
+                                self.emit_console(
+                                    "  🧹 Purging corrupted manifest & download staging cache before retry...",
+                                    "warning",
+                                );
+                                let _ = std::fs::remove_file(&manifest_path);
+                                let _ = std::fs::remove_file(&bak_path);
+                                let app_downloading = install_path.join("steamapps").join("downloading").join(app_id);
+                                if app_downloading.exists() {
+                                    let _ = std::fs::remove_dir_all(&app_downloading);
+                                }
+                            }
+
                             self.emit_console(
                                 &format!("  ⚠️ {} Retrying download attempt {}/3...", last_error_msg, attempt + 1),
                                 "warning",
@@ -895,39 +959,47 @@ impl ServerInstaller {
             }
         }
 
-        // Restore manifest if needed
-        if manifest_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-                let has_empty_build = content.lines().any(|l| {
-                    let t = l.trim();
-                    t.contains("\"buildid\"") && t.contains("\"0\"")
-                });
-                if has_empty_build && bak_path.exists() {
-                    let _ = std::fs::copy(&bak_path, &manifest_path);
+        // Restore manifest if needed (only if NOT corrupted state 0x6 or 0x406)
+        if !had_state_0x6 && !had_state_0x406 {
+            if manifest_path.exists() {
+                if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                    let has_empty_build = content.lines().any(|l| {
+                        let t = l.trim();
+                        t.contains("\"buildid\"") && t.contains("\"0\"")
+                    });
+                    if has_empty_build && bak_path.exists() {
+                        let _ = std::fs::copy(&bak_path, &manifest_path);
+                    }
                 }
+            } else if bak_path.exists() {
+                let _ = std::fs::copy(&bak_path, &manifest_path);
             }
-        } else if bak_path.exists() {
-            let _ = std::fs::copy(&bak_path, &manifest_path);
         }
 
         let mut fix_steps = Vec::new();
-        if install_drive_space < 50.0 || steamcmd_drive_space < 50.0 {
-            fix_steps.push(format!("1. Disk Space: Low space detected! Server drive: {:.1} GB free, SteamCMD drive: {:.1} GB free (at least 60 GB recommended).", install_drive_space, steamcmd_drive_space));
-        } else {
-            fix_steps.push(format!("1. Disk Space: OK ({:.1} GB free on server drive, {:.1} GB free on SteamCMD drive).", install_drive_space, steamcmd_drive_space));
-        }
-
-        if had_state_0x202 {
+        fix_steps.push(format!("1. Note: '{}' is the Steam App ID for ARK Dedicated Server, not an error code.", app_id));
+        if had_state_0x6 || had_state_0x406 {
+            fix_steps.push(format!("2. Corrupted Manifest (State 0x6 / 0x406): Delete '{}' inside the server's 'steamapps' folder and click Update to validate existing files.", format!("appmanifest_{}.acf", app_id)));
+        } else if had_disk_write_failure {
+            fix_steps.push("2. File Lock / Disk Write Failure: Ensure 'ArkAscendedServer.exe' is terminated in Task Manager and add the server directory to your Antivirus exclusion list.".to_string());
+        } else if had_state_0x202 {
             fix_steps.push("2. Download Paused (State 0x202): SteamCMD connection was paused or interrupted. Download chunks in steamapps/downloading are preserved and can be resumed.".to_string());
         } else {
             fix_steps.push("2. Connection: Check network connection stability and Steam server availability.".to_string());
         }
-        if cfg!(windows) {
-            fix_steps.push("3. Permissions: Verify the target directory is writeable and run ARK Server Manager as Administrator.".to_string());
+
+        if install_drive_space < 50.0 || steamcmd_drive_space < 50.0 || had_disk_full {
+            fix_steps.push(format!("3. Disk Space: Low space detected! Server drive: {:.1} GB free, SteamCMD drive: {:.1} GB free (~60 GB recommended).", install_drive_space, steamcmd_drive_space));
         } else {
-            fix_steps.push("3. Permissions & Dependencies: Ensure user has write permissions (chown -R $USER:$USER / chmod -R u+rw) and 32-bit glibc libraries are installed (e.g. 'sudo apt install lib32gcc-s1 lib32stdc++6' on Debian/Ubuntu, or 'sudo dnf install glibc.i686 libstdc++.i686' on Fedora/RHEL).".to_string());
+            fix_steps.push(format!("3. Disk Space: OK ({:.1} GB free on server drive, {:.1} GB free on SteamCMD drive).", install_drive_space, steamcmd_drive_space));
         }
-        fix_steps.push("4. Resume: Click 'Try Again' or 'Update' to resume downloading from the saved chunks.".to_string());
+
+        if cfg!(windows) {
+            fix_steps.push("4. Permissions: Verify the target directory is writeable and run ARK Server Manager as Administrator.".to_string());
+        } else {
+            fix_steps.push("4. Permissions & Dependencies: Ensure user has write permissions (chown -R $USER:$USER / chmod -R u+rw) and 32-bit glibc libraries are installed (e.g. 'sudo apt install lib32gcc-s1 lib32stdc++6' on Debian/Ubuntu, or 'sudo dnf install glibc.i686 libstdc++.i686' on Fedora/RHEL).".to_string());
+        }
+        fix_steps.push("5. Resume: Click 'Try Again' or 'Update' to resume downloading from the saved chunks.".to_string());
 
         let fix_steps_str = fix_steps.join("\n");
 

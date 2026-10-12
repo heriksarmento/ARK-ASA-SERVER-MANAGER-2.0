@@ -55,6 +55,22 @@ impl Platform {
         OperatingSystem::current()
     }
 
+    /// Expands leading `~` or `~/` to the user's home directory
+    pub fn expand_tilde<P: AsRef<Path>>(path: P) -> PathBuf {
+        let path = path.as_ref();
+        let path_str = path.to_string_lossy();
+        if path_str == "~" {
+            if let Some(home) = self::home_dir() {
+                return home;
+            }
+        } else if path_str.starts_with("~/") || path_str.starts_with("~\\") {
+            if let Some(home) = self::home_dir() {
+                return home.join(&path_str[2..]);
+            }
+        }
+        path.to_path_buf()
+    }
+
     /// Resolve an executable name with the proper OS extension (.exe on Windows)
     pub fn executable_name(base: &str) -> String {
         if cfg!(target_os = "windows") {
