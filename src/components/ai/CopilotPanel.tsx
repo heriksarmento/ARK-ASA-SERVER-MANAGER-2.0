@@ -11,6 +11,7 @@ import {
     generateMessageId,
     TOOL_REGISTRY,
     executeToolCall,
+    sanitizeAiModel,
 } from '../../utils/aiAgent';
 import { getPageConfig, buildCopilotSystemPrompt } from './contexts/pageContexts';
 import { buildLiveContext } from './contexts/useCopilotContext';
@@ -88,7 +89,7 @@ export default function CopilotPanel() {
         setStreamingContent('');
 
         try {
-            const model = localStorage.getItem('ai_model') || 'meta/llama-3.3-70b-instruct';
+            const model = sanitizeAiModel(localStorage.getItem('ai_model'));
             const response = await sendAiMessage(apiMessages, model);
 
             // Handle tool calls

@@ -297,7 +297,7 @@ impl SchedulerService {
                         tauri::async_runtime::spawn(async move {
                             let state = app.state::<AppState>();
                             if let Ok(app_dir) = app.path().app_data_dir() {
-                                let steamcmd_exe = app_dir.join("steamcmd").join("steamcmd.exe");
+                                let steamcmd_exe = app_dir.join("steamcmd").join(crate::platform::Platform::steamcmd_executable_name());
                                 if steamcmd_exe.exists() {
                                     // Get install path
                                     let install_path: Option<String> = if let Ok(db) = state.db.lock() {
@@ -669,6 +669,31 @@ impl SchedulerService {
                     
                     // Clear any residual tracking entry to ensure a pristine start
                     state.process_manager.force_cleanup_server_entry(server_id);
+
+                    // Retrieve ports for socket cleanup to prevent TIME_WAIT bind collision
+                    let target_ports: Vec<u16> = {
+                        if let Ok(db) = state.db.lock() {
+                            if let Ok(conn) = db.get_connection() {
+                                conn.query_row(
+                                    "SELECT game_port, query_port, rcon_port FROM servers WHERE id = ?1",
+                                    [server_id],
+                                    |row| {
+                                        let gp: u16 = row.get::<_, u16>(0).unwrap_or(0);
+                                        let qp: u16 = row.get::<_, u16>(1).unwrap_or(0);
+                                        let rp: u16 = row.get::<_, u16>(2).unwrap_or(0);
+                                        let mut p_vec = Vec::new();
+                                        if gp > 0 { p_vec.push(gp); }
+                                        if qp > 0 { p_vec.push(qp); }
+                                        if rp > 0 { p_vec.push(rp); }
+                                        Ok(p_vec)
+                                    }
+                                ).unwrap_or_default()
+                            } else { Vec::new() }
+                        } else { Vec::new() }
+                    };
+
+                    crate::services::process_manager::ProcessManager::kill_processes_on_ports(&target_ports);
+                    sleep(Duration::from_secs(3)).await;
                     
                     let _ = crate::commands::server::start_server(app.clone(), server_id, false).await;
                     

@@ -403,7 +403,7 @@ pub async fn install_server(
     println!("🚀 Installing server: {} at {}", name, install_path);
 
     // Sanitize install path if the user selected the ShooterGame folder by mistake
-    let mut path = PathBuf::from(&install_path);
+    let mut path = crate::platform::Platform::expand_tilde(&install_path);
     if path.file_name() == Some(std::ffi::OsStr::new("ShooterGame")) {
         println!("⚠️  User selected ShooterGame folder for install, correcting to parent folder...");
         if let Some(parent) = path.parent() {
@@ -2858,7 +2858,14 @@ pub async fn update_server(
             server_id,
             crate::services::process_manager::StopReason::UpdateRequired,
         );
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        // Wait up to 12 seconds for the server to completely exit and release file locks
+        for _ in 0..12 {
+            if !state.process_manager.is_server_running(server_id) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
         // Update status to updating
         {
@@ -5393,6 +5400,7 @@ pub async fn diagnose_server_crash(
         ("952876", "Forglar (Premium)"),
         ("965379", "Amissa"),
         ("940428", "Amissa"),
+        ("939532", "Insaluna"),
         ("935639", "Insaluna"),
         ("935048", "Temptress Lagoon"),
         ("932906", "Reverence"),
@@ -5714,7 +5722,7 @@ pub async fn repair_and_recover_server(
 
                 let standalone_map_mods = [
                     "893657", "927084", "962796", "945244", "952876", "965379", "940428",
-                    "935639", "935048", "932906", "1376189", "949666", "1016843", "944358", "965905"
+                    "939532", "935639", "935048", "932906", "1376189", "949666", "1016843", "944358", "965905"
                 ];
 
                 if is_official {

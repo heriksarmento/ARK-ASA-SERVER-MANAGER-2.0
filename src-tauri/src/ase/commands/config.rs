@@ -529,6 +529,11 @@ pub async fn read_ase_config_internal(
         config.prevent_spawn_animations = ini_get_bool(&sections, ss, "PreventSpawnAnimations", false);
         config.allow_cryo_cooldown_on_pve =
             ini_get_bool(&sections, ss, "AllowCryoCooldownOnPvE", false);
+        config.disable_cryopod_fridge_requirement =
+            ini_get_bool(&sections, ss, "DisableCryopodFridgeRequirement", false)
+                || ini_get_bool(&sections, ss, "DisableCryopodStructureRequirement", false);
+        config.allow_cryo_fridge_on_saddle =
+            ini_get_bool(&sections, ss, "AllowCryoFridgeOnSaddle", false);
         config.disable_cryopod_enemy_check =
             ini_get_bool(&sections, ss, "DisableCryopodEnemyCheck", false);
         config.enable_cryo_sickness_pvp =
@@ -1795,6 +1800,16 @@ pub async fn write_ase_config(
     );
     ini_set!(
         ss,
+        "DisableCryopodFridgeRequirement",
+        ark_bool(config.disable_cryopod_fridge_requirement).to_string(),
+    );
+    ini_set!(
+        ss,
+        "AllowCryoFridgeOnSaddle",
+        ark_bool(config.allow_cryo_fridge_on_saddle).to_string(),
+    );
+    ini_set!(
+        ss,
         "DisableCryopodEnemyCheck",
         ark_bool(config.disable_cryopod_enemy_check).to_string(),
     );
@@ -2504,4 +2519,3 @@ mod tests {
         assert!(ride_fliers, "bForceCanRideFliers should be true");
     }
 }
-

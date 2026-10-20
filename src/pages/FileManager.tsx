@@ -1,29 +1,30 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import {
-    Folder,
-    File,
+    ArrowLeft,
+    ArrowRight,
     ArrowUp,
-    Save,
-    RefreshCw,
+    Edit2,
+    ExternalLink,
+    File,
     FileText,
+    Folder,
     HardDrive,
     LayoutGrid,
     List as ListIcon,
-    Search,
-    ArrowLeft,
-    ArrowRight,
     Monitor,
-    Trash2,
-    Edit2,
     Plus,
-    ExternalLink,
+    RefreshCw,
+    Save,
+    Search,
+    Trash2,
     X
 } from 'lucide-react';
-import { cn } from '../utils/helpers';
+import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+import { getDefaultServerDir, isWindowsOS } from '../platform/platform';
 import { useServerStore } from '../stores/serverStore';
+import { cn } from '../utils/helpers';
 
 interface FileEntry {
     name: string;
@@ -54,8 +55,8 @@ const formatDate = (timestamp: number) => {
 
 export default function FileManager() {
     const { t } = useTranslation();
-    const [currentPath, setCurrentPath] = useState<string>('C:/'); // Default start path
-    const [history, setHistory] = useState<string[]>(['C:/']);
+    const [currentPath, setCurrentPath] = useState<string>(isWindowsOS() ? 'C:/' : '/'); // Default start path
+    const [history, setHistory] = useState<string[]>([isWindowsOS() ? 'C:/' : '/']);
     const [historyIndex, setHistoryIndex] = useState(0);
 
     const [files, setFiles] = useState<FileEntry[]>([]);
@@ -121,7 +122,7 @@ export default function FileManager() {
         if (activeServer?.installPath) {
             loadDirectory(activeServer.installPath, false);
         } else {
-            loadDirectory('C:/', false);
+            loadDirectory(isWindowsOS() ? 'C:/' : '/', false);
         }
     }, [activeServer?.id]);
 
@@ -331,7 +332,12 @@ export default function FileManager() {
                             {drives.map(drive => (
                                 <button
                                     key={drive.mount_point}
-                                    onClick={() => loadDirectory(drive.mount_point + (drive.mount_point.endsWith('\\') ? '' : '\\'))}
+                                    onClick={() => {
+                                        const sep = isWindowsOS()
+                                            ? (drive.mount_point.endsWith('\\') ? '' : '\\')
+                                            : (drive.mount_point.endsWith('/') ? '' : '/');
+                                        loadDirectory(drive.mount_point + sep);
+                                    }}
                                     className={cn(
                                         "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
                                         currentPath.startsWith(drive.mount_point) ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:bg-white/5 hover:text-white"
@@ -355,11 +361,11 @@ export default function FileManager() {
                     {/* Common Locations */}
                     <div>
                         <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('fileManager.quickAccess', 'Quick Access')}</div>
-                        <button onClick={() => loadDirectory('C:/ARKServers/')} className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-left text-slate-400 hover:bg-white/5 hover:text-white">
+                        <button onClick={() => loadDirectory(isWindowsOS() ? 'C:/ARKServers/' : getDefaultServerDir())} className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-left text-slate-400 hover:bg-white/5 hover:text-white">
                             <Folder className="w-4 h-4 text-emerald-500" />
                             <span>{t('fileManager.arkServers', 'ARK Servers')}</span>
                         </button>
-                        <button onClick={() => loadDirectory('C:/Users/')} className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-left text-slate-400 hover:bg-white/5 hover:text-white">
+                        <button onClick={() => loadDirectory(isWindowsOS() ? 'C:/Users/' : '/home/')} className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-left text-slate-400 hover:bg-white/5 hover:text-white">
                             <Folder className="w-4 h-4 text-blue-500" />
                             <span>{t('fileManager.users', 'Users')}</span>
                         </button>

@@ -2,6 +2,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../i18n';
 import { formatMemoryForPrompt } from './aiMemory';
+import { joinPlatformPath, getDefaultServerDir } from '../platform/platform';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -37,13 +38,26 @@ export interface ToolDefinition {
 // ── Available Models ───────────────────────────────────────────────────
 
 export const AI_MODELS = [
-    { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', description: 'Fast & powerful' },
+    { id: 'meta/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', description: 'Fast & powerful' },
+    { id: 'nvidia/llama-3.1-nemotron-70b-instruct', name: 'Nemotron 70B', description: 'Advanced reasoning & helpful' },
     { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B', description: 'Deep reasoning' },
     { id: 'deepseek-ai/deepseek-r1', name: 'DeepSeek R1', description: 'Strong reasoning' },
     { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1', name: 'Nemotron Ultra 253B', description: 'Enterprise-grade' },
 ] as const;
 
-export const DEFAULT_MODEL = 'meta/llama-3.3-70b-instruct';
+export const DEFAULT_MODEL = 'meta/llama-3.1-70b-instruct';
+
+/**
+ * Sanitizes model string to prevent 410 Gone errors from retired models
+ * (e.g. meta/llama-3.3-70b-instruct which reached EOL on 2026-08-26).
+ */
+export function sanitizeAiModel(model?: string | null): string {
+    if (!model || model === 'meta/llama-3.3-70b-instruct') {
+        return DEFAULT_MODEL;
+    }
+    const exists = AI_MODELS.some(m => m.id === model);
+    return exists ? model : DEFAULT_MODEL;
+}
 
 // ── System Prompt ──────────────────────────────────────────────────────
 
@@ -236,7 +250,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
         requiresConfirmation: true,
         execute: async (args) => {
             return await invoke('install_server', {
-                installPath: args.install_path as string || 'C:\\ARKServers\\AIServer',
+                installPath: args.install_path as string || joinPlatformPath(getDefaultServerDir(), 'AIServer'),
                 name: args.name as string || 'AI Managed Server',
                 mapName: args.map_name as string || 'TheIsland_WP',
                 gamePort: Number(args.game_port) || 7777,
@@ -622,12 +636,13 @@ export async function sendAiMessage(
     messages: { role: string; content: string }[],
     model: string
 ): Promise<AiResponse> {
+    const effectiveModel = sanitizeAiModel(model);
     const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('AI request timed out after 130 seconds. Please check your AI API key, selected model, or network connection.')), 130000);
     });
 
     return await Promise.race([
-        invoke<AiResponse>('ai_chat', { messages, model }),
+        invoke<AiResponse>('ai_chat', { messages, model: effectiveModel }),
         timeoutPromise
     ]);
 }

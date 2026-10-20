@@ -340,7 +340,14 @@ pub async fn save_config(
             .map(|s| s.trim_matches('"').trim_matches('\'').to_string());
         
         let map_name = IniParser::get_value(&content, "ServerSettings", "MapName")
-            .map(|s| s.trim_matches('"').trim_matches('\'').to_string());
+            .map(|s| {
+                let clean = s.trim_matches('"').trim_matches('\'').trim();
+                if clean.is_empty() {
+                    clean.to_string()
+                } else {
+                    crate::services::config_generator::normalize_map_name(clean)
+                }
+            });
 
         let max_players: Option<i32> = IniParser::get_value(&content, "ServerSettings", "MaxPlayers")
             .or_else(|| IniParser::get_value(&content, "/Script/Engine.GameSession", "MaxPlayers"))

@@ -284,7 +284,8 @@ export default function AdvancedPage() {
 
     const assembledCommandLine = useMemo(() => {
         if (!currentServer) return 'ArkAscendedServer.exe TheIsland_WP?listen';
-        const map = currentServer.config?.mapName || 'TheIsland_WP';
+        const rawMap = currentServer.config?.mapName || 'TheIsland_WP';
+        const map = (rawMap.toLowerCase() === 'astraeos' || rawMap.toLowerCase() === 'astraos') ? 'Astraeos_WP' : rawMap;
         const port = currentServer.ports?.gamePort || 7777;
         const queryPort = currentServer.ports?.queryPort || 27015;
         const rconPort = currentServer.ports?.rconPort || 32330;

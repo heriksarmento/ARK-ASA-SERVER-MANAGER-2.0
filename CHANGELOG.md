@@ -5,6 +5,42 @@ All notable changes to the ARK ASA Server Manager are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.33] — 2026-10-12
+
+### Fixed & Improved
+- **🛠️ Fix SteamCMD Update Failure & Error App 2430930 (State 0x6 / 0x406 / Disk Write Failure)**:
+  - Clarified that `2430930` is the official Steam App ID for the ARK: Survival Ascended Dedicated Server (not an error code).
+  - Resolved disk write failures during server updates by waiting up to 12s for active `ArkAscendedServer.exe` processes to fully release binary and DLL file locks before SteamCMD starts.
+  - Implemented automated self-healing for corrupted SteamCMD manifests: actively detects `State 0x6` and `State 0x406` (corrupted manifest / incomplete staging), automatically purges the poisoned `appmanifest_2430930.acf` and invalid downloading staging cache, and avoids restoring corrupt backups so SteamCMD validates and repairs existing game files cleanly on retry.
+  - Enhanced diagnostic error reporting with clear root-cause breakdown and tailored actionable fix steps.
+- **🛡️ Guardian Watchdog Clean Exit & Duplicate Process Protection**:
+  - Added clean exit detection (`exit code 0` / status stopped) in the watchdog monitor to prevent unnecessary auto-restart loops when servers terminate intentionally or perform launcher handoffs.
+  - Added safety guard to prevent redundant restart attempts when the server is already verified as running.
+- **💾 Data Integrity Hardening for Intelligent Auto-Repair**:
+  - Ensured Intelligent Mode auto-repair never purges active installed mods or launches without mods (which could wipe modded structures/items from world saves); now only cleans `.temp` compiler caches and safely restarts with all configured mods intact.
+- **🗺️ MapName Normalization in GameUserSettings.ini & Insaluna Mod ID Alignment**:
+  - Enforced `MapName` and `ServerMap` alignment in `GameUserSettings.ini` under `[ServerSettings]` to prevent duplicate save directories or blank day-1 worlds.
+  - Corrected Insaluna mod map ID to official CurseForge package `939532`.
+
+---
+
+## [4.6.32] — 2026-10-09
+
+### Fixed & Improved
+- **🐧 Fix Linux Server Installation Under Root User**:
+  - Resolved critical issue where running ARK Server Manager on Linux as `root` (or inside headless / containerized Linux VPS environments) failed to install or update servers via SteamCMD due to SteamCMD's default safety check against running under root.
+  - Added root user detection, automatic user isolation, permission normalization, and SteamCMD invocation flags so server installations complete reliably without manual user switching.
+- **🧊 Fix "Disable Cryo Fridge Requirement" Setting Having No Effect (#41)**:
+  - Resolved issue #41 where toggling "Disable Cryo Fridge Requirement" in Server Settings had no effect in-game.
+  - Corrected config mapping and INI key alignment (`DisableCryopodFridgeRequirement` in `GameUserSettings.ini` under `[ServerSettings]`), ensuring server settings apply correctly across both ASA and ASE servers.
+- **⚛️ Fix React Error #310 in Server Overview Modal ("View Full Server Overview & Details")**:
+  - Resolved fatal `Minified React error #310` ("Rendered more hooks than during the previous render") triggered when opening the Server Overview modal via *Server Manager > Editing Target > View Full Server Overview & Details*.
+  - Declared all hooks (`useState`, `useServerStore`, `useAseServerStore`) unconditionally at the top level of `ServerOverviewModal`, and guarded modal mounting in `TopBar.tsx` and child `InGameAdminModal`.
+- **🧠 AI Assistant & Cross-Platform File Management Hardening**:
+  - Enhanced error resilience, cross-platform path handling, and assistant prompt stability across Linux and Windows environments.
+
+---
+
 ## [4.6.31] — 2026-10-06
 
 ### Fixed & Improved

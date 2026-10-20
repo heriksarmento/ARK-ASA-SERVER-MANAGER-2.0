@@ -33,13 +33,16 @@ mod tests {
     fn test_default_paths() {
         let backup_dir = Platform::default_backup_dir();
         let cluster_dir = Platform::default_cluster_dir();
+        let server_dir = Platform::default_server_dir();
 
         assert!(!backup_dir.as_os_str().is_empty());
         assert!(!cluster_dir.as_os_str().is_empty());
+        assert!(!server_dir.as_os_str().is_empty());
 
         if cfg!(target_os = "windows") {
             assert_eq!(backup_dir.to_str().unwrap(), "C:/ASA_Backups");
             assert_eq!(cluster_dir.to_str().unwrap(), "C:/ASA_Clusters");
+            assert_eq!(server_dir.to_str().unwrap(), "C:/ARKServers");
         }
     }
 
@@ -50,6 +53,16 @@ mod tests {
             assert_eq!(flags, 0x08000000);
         } else {
             assert_eq!(flags, 0);
+        }
+    }
+
+    #[test]
+    fn test_expand_tilde() {
+        let expanded = Platform::expand_tilde("~/test_dir");
+        let non_tilde = Platform::expand_tilde("/var/servers/test");
+        assert_eq!(non_tilde.to_str().unwrap(), "/var/servers/test");
+        if let Some(home) = super::super::home_dir() {
+            assert_eq!(expanded, home.join("test_dir"));
         }
     }
 }
