@@ -584,11 +584,6 @@ export const GAME_USER_SETTINGS_SCHEMA: ConfigGroup[] = [
             },
             {
                 section: 'ServerSettings',
-                key: 'DisableCryopodFridgeRequirement',
-                label: 'Disable Cryo Fridge Requirement',
-                type: 'boolean',
-                defaultValue: 'False',
-                description: 'In ASA, setting this to True removes the requirement that a powered Cryofridge must be nearby to deploy cryopods.'
                 key: 'StructurePickupTimeAfterPlacement',
                 label: 'Quick Pickup Window (seconds)',
                 type: 'number',
