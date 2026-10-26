@@ -568,7 +568,7 @@ export const GAME_USER_SETTINGS_SCHEMA: ConfigGroup[] = [
             {
                 section: 'ServerSettings',
                 key: 'DisableCryopodFridgeRequirement',
-                label: 'Disable Cryo Fridge Requirement',
+                label: 'Use Cryopods Without a Cryofridge',
                 type: 'boolean',
                 defaultValue: 'False',
                 description: 'In ASA, setting this to True removes the requirement that a powered Cryofridge must be nearby to deploy cryopods.'
